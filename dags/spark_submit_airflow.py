@@ -14,7 +14,7 @@ from airflow.contrib.operators.emr_terminate_job_flow_operator import (
 )
 
 # Configurations
-BUCKET_NAME = "<your-bucket-name>"  # replace this with your bucket name
+BUCKET_NAME = "spark-emr-airflow"  # replace this with your bucket name
 local_data = "./dags/data/movie_review.csv"
 s3_data = "data/movie_review.csv"
 local_script = "./dags/scripts/spark/random_text_classification.py"
@@ -51,9 +51,19 @@ dag = DAG(
 
 start_data_pipeline = DummyOperator(task_id="start_data_pipeline", dag=dag)
 
-data_to_s3 = DummyOperator(task_id="data_to_s3", dag=dag)
+data_to_s3 = PythonOperator(
+    dag=dag,
+    task_id="data_to_s3",
+    python_callable=_local_to_s3,
+    op_kwargs={"filename": local_data, "key": s3_data,},
+)
 
-script_to_s3 = DummyOperator(task_id="script_to_s3", dag=dag)
+script_to_s3 = PythonOperator(
+    dag=dag,
+    task_id="script_to_s3",
+    python_callable=_local_to_s3,
+    op_kwargs={"filename": local_script, "key": s3_script,},
+)
 
 # Create an EMR cluster
 create_emr_cluster = DummyOperator(task_id="create_emr_cluster", dag=dag)
