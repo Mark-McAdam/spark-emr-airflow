@@ -14,13 +14,54 @@ from airflow.contrib.operators.emr_terminate_job_flow_operator import (
 )
 
 # Configurations
+
 BUCKET_NAME = "spark-emr-airflow"  # replace this with your bucket name
+
 local_data = "./dags/data/movie_review.csv"
 s3_data = "data/movie_review.csv"
 local_script = "./dags/scripts/spark/random_text_classification.py"
 s3_script = "scripts/random_text_classification.py"
 s3_clean = "clean_data/"
-SPARK_STEPS = []
+
+SPARK_STEPS = [  # Note the params values are supplied to the operator
+    {
+        "Name": "Move raw data from S3 to HDFS",
+        "ActionOnFailure": "CANCEL_AND_WAIT",
+        "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+                "s3-dist-cp",
+                "--src=s3://{{ params.BUCKET_NAME }}/data",
+                "--dest=/movie",
+            ],
+        },
+    },
+    {
+        "Name": "Classify movie reviews",
+        "ActionOnFailure": "CANCEL_AND_WAIT",
+        "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+                "spark-submit",
+                "--deploy-mode",
+                "client",
+                "s3://{{ params.BUCKET_NAME }}/{{ params.s3_script }}",
+            ],
+        },
+    },
+    {
+        "Name": "Move clean data from HDFS to S3",
+        "ActionOnFailure": "CANCEL_AND_WAIT",
+        "HadoopJarStep": {
+            "Jar": "command-runner.jar",
+            "Args": [
+                "s3-dist-cp",
+                "--src=/output",
+                "--dest=s3://{{ params.BUCKET_NAME }}/{{ params.s3_clean }}",
+            ],
+        },
+    },
+]
 
 JOB_FLOW_OVERRIDES = {
     "Name": "Movie review classifier",
@@ -118,11 +159,32 @@ create_emr_cluster = EmrCreateJobFlowOperator(
 )
 
 # Add your steps to the EMR cluster
-step_adder = DummyOperator(task_id="add_steps", dag=dag)
+step_adder = EmrAddStepsOperator(
+    task_id="add_steps",
+    job_flow_id="{{ task_instance.xcom_pull(task_ids='create_emr_cluster', key='return_value') }}",
+    aws_conn_id="aws_default",
+    steps=SPARK_STEPS,
+    params={  # these params are used to fill the paramterized values in SPARK_STEPS json
+        "BUCKET_NAME": BUCKET_NAME,
+        "s3_data": s3_data,
+        "s3_script": s3_script,
+        "s3_clean": s3_clean,
+    },
+    dag=dag,
+)
 
 last_step = len(SPARK_STEPS) - 1
+
 # wait for the steps to complete
-step_checker = DummyOperator(task_id="watch_step", dag=dag)
+step_checker = EmrStepSensor(
+    task_id="watch_step",
+    job_flow_id="{{ task_instance.xcom_pull('create_emr_cluster', key='return_value') }}",
+    step_id="{{ task_instance.xcom_pull(task_ids='add_steps', key='return_value')["
+    + str(last_step)
+    + "] }}",
+    aws_conn_id="aws_default",
+    dag=dag,
+)
 
 # Terminate the EMR cluster
 terminate_emr_cluster = DummyOperator(task_id="terminate_emr_cluster", dag=dag)
