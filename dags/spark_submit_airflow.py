@@ -22,7 +22,50 @@ s3_script = "scripts/random_text_classification.py"
 s3_clean = "clean_data/"
 SPARK_STEPS = []
 
-JOB_FLOW_OVERRIDES = {}
+JOB_FLOW_OVERRIDES = {
+    "Name": "Movie review classifier",
+    "ReleaseLabel": "emr-5.29.0",
+    "Applications": [
+        {"Name": "Hadoop"},
+        {"Name": "Spark"},
+    ],  # We want our EMR cluster to have HDFS and Spark
+    "Configurations": [
+        {
+            "Classification": "spark-env",
+            "Configurations": [
+                {
+                    "Classification": "export",
+                    "Properties": {
+                        "PYSPARK_PYTHON": "/usr/bin/python3"
+                    },  # by default EMR uses py2, change it to py3
+                }
+            ],
+        }
+    ],
+    "Instances": {
+        "InstanceGroups": [
+            {
+                "Name": "Master node",
+                "Market": "SPOT",
+                "InstanceRole": "MASTER",
+                "InstanceType": "m4.xlarge",
+                "InstanceCount": 1,
+            },
+            {
+                "Name": "Core - 2",
+                "Market": "SPOT",  # Spot instances are a "use as available" instances
+                "InstanceRole": "CORE",
+                "InstanceType": "m4.xlarge",
+                "InstanceCount": 2,
+            },
+        ],
+        "KeepJobFlowAliveWhenNoSteps": True,
+        "TerminationProtected": False,  # this lets us programmatically terminate the cluster
+    },
+    "JobFlowRole": "EMR_EC2_DefaultRole",
+    "ServiceRole": "EMR_DefaultRole",
+}
+
 
 # helper function
 def _local_to_s3(filename, key, bucket_name=BUCKET_NAME):
@@ -66,7 +109,13 @@ script_to_s3 = PythonOperator(
 )
 
 # Create an EMR cluster
-create_emr_cluster = DummyOperator(task_id="create_emr_cluster", dag=dag)
+create_emr_cluster = EmrCreateJobFlowOperator(
+    task_id="create_emr_cluster",
+    job_flow_overrides=JOB_FLOW_OVERRIDES,
+    aws_conn_id="aws_default",
+    emr_conn_id="emr_default",
+    dag=dag,
+)
 
 # Add your steps to the EMR cluster
 step_adder = DummyOperator(task_id="add_steps", dag=dag)
