@@ -27,3 +27,6 @@ __pycache__
 
 # datasets
 *movie_review.csv*
+
+.DS_STORE
+.DS_Store
