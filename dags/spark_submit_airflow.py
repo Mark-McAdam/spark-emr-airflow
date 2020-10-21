@@ -187,9 +187,15 @@ step_checker = EmrStepSensor(
 )
 
 # Terminate the EMR cluster
-terminate_emr_cluster = DummyOperator(task_id="terminate_emr_cluster", dag=dag)
+terminate_emr_cluster = EmrTerminateJobFlowOperator(
+    task_id="terminate_emr_cluster",
+    job_flow_id="{{ task_instance.xcom_pull(task_ids='create_emr_cluster', key='return_value') }}",
+    aws_conn_id="aws_default",
+    dag=dag,
+)
 
 end_data_pipeline = DummyOperator(task_id="end_data_pipeline", dag=dag)
+
 
 start_data_pipeline >> [data_to_s3, script_to_s3] >> create_emr_cluster
 create_emr_cluster >> step_adder >> step_checker >> terminate_emr_cluster
