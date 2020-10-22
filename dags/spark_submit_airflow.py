@@ -64,7 +64,7 @@ SPARK_STEPS = [  # Note the params values are supplied to the operator
 ]
 
 JOB_FLOW_OVERRIDES = {
-    "Name": "Movie review classifier",
+    "Name": "Movie review classifier new",
     "ReleaseLabel": "emr-5.29.0",
     "Applications": [
         {"Name": "Hadoop"},
@@ -104,7 +104,7 @@ JOB_FLOW_OVERRIDES = {
         "TerminationProtected": False,  # this lets us programmatically terminate the cluster
     },
     "JobFlowRole": "EMR_EC2_DefaultRole",
-    "ServiceRole": "EMR_DefaultRole",
+    "ServiceRole": "EMR_DefaultRole",  # EMR_DefaultRole
 }
 
 
@@ -135,12 +135,12 @@ dag = DAG(
 
 start_data_pipeline = DummyOperator(task_id="start_data_pipeline", dag=dag)
 
-data_to_s3 = PythonOperator(
-    dag=dag,
-    task_id="data_to_s3",
-    python_callable=_local_to_s3,
-    op_kwargs={"filename": local_data, "key": s3_data,},
-)
+# data_to_s3 = PythonOperator(
+#     dag=dag,
+#     task_id="data_to_s3",
+#     python_callable=_local_to_s3,
+#     op_kwargs={"filename": local_data, "key": s3_data,},
+# )
 
 script_to_s3 = PythonOperator(
     dag=dag,
@@ -197,6 +197,4 @@ terminate_emr_cluster = EmrTerminateJobFlowOperator(
 end_data_pipeline = DummyOperator(task_id="end_data_pipeline", dag=dag)
 
 
-start_data_pipeline >> [data_to_s3, script_to_s3] >> create_emr_cluster
-create_emr_cluster >> step_adder >> step_checker >> terminate_emr_cluster
-terminate_emr_cluster >> end_data_pipeline
+start_data_pipeline >> script_to_s3 >> create_emr_cluster >> step_adder >> step_checker >> terminate_emr_cluster >> end_data_pipeline
