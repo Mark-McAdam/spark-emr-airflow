@@ -1,6 +1,7 @@
 # How to submit Spark jobs to EMR cluster from Airflow
 
-This is the repository for blog at [How to submit Spark jobs to EMR cluster from Airflow](http://startdataengineering.com/post/how-to-submit-spark-jobs-to-emr-cluster-from-airflow).
+![DAG](assets/images/spark_submit_dag.png)
+
 
 # Prerequisites
 
@@ -74,9 +75,3 @@ docker-compose -f docker-compose-LocalExecutor.yml down
 ```bash
 aws s3api delete-bucket --bucket <your-bucket-name>
 ```
-
-# Contact
-
-website: https://www.startdataengineering.com/
-
-twitter: https://twitter.com/start_data_eng
